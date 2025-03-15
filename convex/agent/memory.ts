@@ -42,9 +42,7 @@ export async function rememberConversation(
   const llmMessages: LLMMessage[] = [
     {
       role: 'user',
-      content: `You are ${player.name}, and you just finished a conversation with ${otherPlayer.name}. I would
-      like you to summarize the conversation from ${player.name}'s perspective, using first-person pronouns like
-      "I," and add if you liked or disliked this interaction.`,
+      content: `你是${player.name}，你刚刚结束了与${otherPlayer.name}的对话。我希望你能从${player.name}的角度总结这次对话，使用第一人称代词如“我”，并添加你是否喜欢这次互动。`,
     },
   ];
   const authors = new Set<GameId<'players'>>();
@@ -54,17 +52,17 @@ export async function rememberConversation(
     const recipient = message.author === player.id ? otherPlayer : player;
     llmMessages.push({
       role: 'user',
-      content: `${author.name} to ${recipient.name}: ${message.text}`,
+      content: `${author.name} 对 ${recipient.name} 说: ${message.text}`,
     });
   }
-  llmMessages.push({ role: 'user', content: 'Summary:' });
+  llmMessages.push({ role: 'user', content: '总结:' });
   const { content } = await chatCompletion({
     messages: llmMessages,
     max_tokens: 500,
   });
-  const description = `Conversation with ${otherPlayer.name} at ${new Date(
+  const description = `与${otherPlayer.name}的对话，时间：${new Date(
     data.conversation._creationTime,
-  ).toLocaleString()}: ${content}`;
+  ).toLocaleString()}：${content}`;
   const importance = await calculateImportance(description);
   const { embedding } = await fetchEmbedding(description);
   authors.delete(player.id as GameId<'players'>);
@@ -94,25 +92,25 @@ export const loadConversation = internalQuery({
   handler: async (ctx, args) => {
     const world = await ctx.db.get(args.worldId);
     if (!world) {
-      throw new Error(`World ${args.worldId} not found`);
+      throw new Error(`未找到世界 ${args.worldId}`);
     }
     const player = world.players.find((p) => p.id === args.playerId);
     if (!player) {
-      throw new Error(`Player ${args.playerId} not found`);
+      throw new Error(`未找到玩家 ${args.playerId}`);
     }
     const playerDescription = await ctx.db
       .query('playerDescriptions')
       .withIndex('worldId', (q) => q.eq('worldId', args.worldId).eq('playerId', args.playerId))
       .first();
     if (!playerDescription) {
-      throw new Error(`Player description for ${args.playerId} not found`);
+      throw new Error(`未找到玩家描述 ${args.playerId}`);
     }
     const conversation = await ctx.db
       .query('archivedConversations')
       .withIndex('worldId', (q) => q.eq('worldId', args.worldId).eq('id', args.conversationId))
       .first();
     if (!conversation) {
-      throw new Error(`Conversation ${args.conversationId} not found`);
+      throw new Error(`未找到对话 ${args.conversationId}`);
     }
     const otherParticipator = await ctx.db
       .query('participatedTogether')
@@ -125,7 +123,7 @@ export const loadConversation = internalQuery({
       .first();
     if (!otherParticipator) {
       throw new Error(
-        `Couldn't find other participant in conversation ${args.conversationId} with player ${args.playerId}`,
+        `未找到对话 ${args.conversationId} 中与玩家 ${args.playerId} 的其他参与者`,
       );
     }
     const otherPlayerId = otherParticipator.player2;
@@ -138,14 +136,14 @@ export const loadConversation = internalQuery({
         .first();
     }
     if (!otherPlayer) {
-      throw new Error(`Conversation ${args.conversationId} other player not found`);
+      throw new Error(`未找到对话 ${args.conversationId} 中的其他玩家`);
     }
     const otherPlayerDescription = await ctx.db
       .query('playerDescriptions')
       .withIndex('worldId', (q) => q.eq('worldId', args.worldId).eq('playerId', otherPlayerId))
       .first();
     if (!otherPlayerDescription) {
-      throw new Error(`Player description for ${otherPlayerId} not found`);
+      throw new Error(`未找到玩家描述 ${otherPlayerId}`);
     }
     return {
       player: { ...player, name: playerDescription.name },
@@ -196,7 +194,7 @@ export const rankAndTouchMemories = internalMutation({
         .query('memories')
         .withIndex('embeddingId', (q) => q.eq('embeddingId', _id))
         .first();
-      if (!memory) throw new Error(`Memory for embedding ${_id} not found`);
+      if (!memory) throw new Error(`未找到嵌入 ${_id} 的记忆`);
       return memory;
     });
 
@@ -248,9 +246,9 @@ async function calculateImportance(description: string) {
     messages: [
       {
         role: 'user',
-        content: `On the scale of 0 to 9, where 0 is purely mundane (e.g., brushing teeth, making bed) and 9 is extremely poignant (e.g., a break up, college acceptance), rate the likely poignancy of the following piece of memory.
-      Memory: ${description}
-      Answer on a scale of 0 to 9. Respond with number only, e.g. "5"`,
+        content: `在0到9的范围内，0表示纯粹的日常事务（例如刷牙、整理床铺），9表示极其重要的事件（例如分手、大学录取），请为以下记忆片段的可能重要性评分。
+      记忆：${description}
+      请在0到9的范围内回答。仅回答数字，例如“5”`,
       },
     ],
     temperature: 0.0,
@@ -262,7 +260,7 @@ async function calculateImportance(description: string) {
     importance = +(importanceRaw.match(/\d+/)?.[0] ?? NaN);
   }
   if (isNaN(importance)) {
-    console.debug('Could not parse memory importance from: ', importanceRaw);
+    console.debug('无法解析记忆重要性：', importanceRaw);
     importance = 5;
   }
   return importance;
@@ -345,18 +343,18 @@ async function reflectOnMemories(
   if (!shouldReflect) {
     return false;
   }
-  console.debug('sum of importance score = ', sumOfImportanceScore);
-  console.debug('Reflecting...');
-  const prompt = ['[no prose]', '[Output only JSON]', `You are ${name}, statements about you:`];
+  console.debug('重要性分数总和 = ', sumOfImportanceScore);
+  console.debug('正在反思...');
+  const prompt = ['[无叙述]', '[仅输出JSON]', `你是${name}，关于你的陈述：`];
   memories.forEach((m, idx) => {
-    prompt.push(`Statement ${idx}: ${m.description}`);
+    prompt.push(`陈述 ${idx}：${m.description}`);
   });
-  prompt.push('What 3 high-level insights can you infer from the above statements?');
+  prompt.push('从上述陈述中你能推断出哪些3个高层次的见解？');
   prompt.push(
-    'Return in JSON format, where the key is a list of input statements that contributed to your insights and value is your insight. Make the response parseable by Typescript JSON.parse() function. DO NOT escape characters or include "\n" or white space in response.',
+    '以JSON格式返回，其中键是贡献你见解的输入陈述列表，值是你的见解。确保响应可以被Typescript的JSON.parse()函数解析。不要转义字符或包含“\\n”或空格在响应中。',
   );
   prompt.push(
-    'Example: [{insight: "...", statementIds: [1,2]}, {insight: "...", statementIds: [1]}, ...]',
+    '示例：[{insight: "...", statementIds: [1,2]}, {insight: "...", statementIds: [1]}, ...]',
   );
 
   const { content: reflection } = await chatCompletion({
@@ -374,7 +372,7 @@ async function reflectOnMemories(
       const relatedMemoryIds = item.statementIds.map((idx: number) => memories[idx]._id);
       const importance = await calculateImportance(item.insight);
       const { embedding } = await fetchEmbedding(item.insight);
-      console.debug('adding reflection memory...', item.insight);
+      console.debug('添加反思记忆...', item.insight);
       return {
         description: item.insight,
         embedding,
@@ -389,8 +387,8 @@ async function reflectOnMemories(
       reflections: memoriesToSave,
     });
   } catch (e) {
-    console.error('error saving or parsing reflection', e);
-    console.debug('reflection', reflection);
+    console.error('保存或解析反思时出错', e);
+    console.debug('反思内容', reflection);
     return false;
   }
   return true;
@@ -400,18 +398,18 @@ export const getReflectionMemories = internalQuery({
   handler: async (ctx, args) => {
     const world = await ctx.db.get(args.worldId);
     if (!world) {
-      throw new Error(`World ${args.worldId} not found`);
+      throw new Error(`未找到世界 ${args.worldId}`);
     }
     const player = world.players.find((p) => p.id === args.playerId);
     if (!player) {
-      throw new Error(`Player ${args.playerId} not found`);
+      throw new Error(`未找到玩家 ${args.playerId}`);
     }
     const playerDescription = await ctx.db
       .query('playerDescriptions')
       .withIndex('worldId', (q) => q.eq('worldId', args.worldId).eq('playerId', args.playerId))
       .first();
     if (!playerDescription) {
-      throw new Error(`Player description for ${args.playerId} not found`);
+      throw new Error(`未找到玩家描述 ${args.playerId}`);
     }
     const memories = await ctx.db
       .query('memories')
